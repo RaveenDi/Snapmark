@@ -1,0 +1,64 @@
+{
+  "name": "snapmark",
+  "productName": "Snapmark",
+  "version": "0.1.0",
+  "description": "A tiny, fast screenshot annotator: arrows, shapes, text, save as new, drag out.",
+  "main": "src/main/main.js",
+  "license": "MIT",
+  "author": "Snapmark contributors",
+  "keywords": [
+    "screenshot",
+    "annotate",
+    "electron",
+    "markup"
+  ],
+  "scripts": {
+    "start": "electron .",
+    "smoke": "electron test/smoke.js",
+    "icon": "electron scripts/make-icon.js",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux"
+  },
+  "build": {
+    "appId": "io.github.snapmark.app",
+    "productName": "Snapmark",
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.graphics-design"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Graphics"
+    }
+  },
+  "devDependencies": {
+    "electron": "^45.4.1",
+    "electron-builder": "^26.18.0"
+  }
+}

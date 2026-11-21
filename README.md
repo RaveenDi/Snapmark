@@ -35,13 +35,11 @@ Works on Windows, macOS and Linux. Free and open source (MIT).
 
 ## Install
 
-Run the installer for your system (built with the commands under *Build the installers* below):
+**Windows (64-bit):** download `Snapmark.Setup.x.y.z.exe` from the [latest release](https://github.com/RaveenDi/Snapmark/releases/latest) and run it. It installs for the current user in one click and adds Start menu and desktop shortcuts.
 
-- **Windows** — `Snapmark Setup x.y.z.exe` (one click, installs for the current user, adds Start menu and desktop shortcuts)
-- **macOS** — `Snapmark-x.y.z.dmg`
-- **Linux** — `Snapmark-x.y.z.AppImage`
+The installer is not code-signed, so Windows SmartScreen may warn the first time you run it: choose *More info*, then *Run anyway*.
 
-The builds are not code-signed, so Windows SmartScreen or macOS Gatekeeper may warn the first time you open it.
+**macOS and Linux:** there is no download yet. Run from source, or build a `.dmg` / `.AppImage` yourself with the commands under *Build the installers* below. These platforms have not been tested yet.
 
 ## Run from source
 

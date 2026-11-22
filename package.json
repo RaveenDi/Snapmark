@@ -1,7 +1,7 @@
 {
   "name": "snapmark",
   "productName": "Snapmark",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A tiny, fast screenshot annotator: arrows, shapes, text, save as new, drag out.",
   "main": "src/main/main.js",
   "license": "MIT",

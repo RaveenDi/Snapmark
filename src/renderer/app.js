@@ -17,11 +17,19 @@
     pen: 'Drag to draw freehand',
     text: 'Click where the text should go · Enter to finish, Shift+Enter for a new line',
   };
+  const FILLS = ['none', 'soft', 'solid'];
+  const FILL_HINTS = {
+    none: 'Outline only: shapes are not filled',
+    soft: 'See-through fill: rectangles, ellipses and closed shapes get a light tint',
+    solid: 'Solid fill: rectangles, ellipses and closed shapes are filled in completely',
+  };
+  const CANVAS_SIZE = { w: 1920, h: 1080 };
 
   const editor = new window.Editor($('#stage'));
   const state = {
     dir: null,
     items: [],
+    blanks: [], // blank canvases that only exist in memory until they are saved
     known: new Set(), // every path we have listed so far (to spot new screenshots)
     doc: null, // { path, name }
     sessions: new Map(), // path -> drawings, kept while the app is open
@@ -38,6 +46,9 @@
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const isTyping = (el) => !!el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT' || el.isContentEditable);
   const markedName = (name) => name.replace(/\.[^.]+$/, '').replace(/-marked(-\d+)?$/, '') + '-marked.png';
+  const isBlank = (p) => typeof p === 'string' && p.startsWith('canvas:');
+  const tempName = (doc) => (doc.blank ? `${doc.name}.png` : markedName(doc.name));
+  const thumbKey = (item) => `${item.path}|${item.mtime}`;
 
   // ---------- toasts ----------
 
@@ -94,6 +105,7 @@
     const key = img.dataset.key;
     let url = state.thumbs.get(key);
     if (!url) {
+      if (isBlank(img.dataset.path)) return;
       url = await api.thumb(img.dataset.path);
       if (!url) return;
       state.thumbs.set(key, url);
@@ -124,7 +136,7 @@
       el.className = 'item';
       el.draggable = true;
       el.dataset.path = item.path;
-      el.title = item.path;
+      el.title = item.blank ? 'Blank canvas — not saved yet. Press Ctrl+S to save it as an image.' : item.path;
       if (state.doc && state.doc.path === item.path) el.classList.add('active');
       if (state.dirty.has(item.path)) el.classList.add('dirty');
 
@@ -133,7 +145,7 @@
       const img = document.createElement('img');
       img.alt = '';
       img.dataset.path = item.path;
-      img.dataset.key = `${item.path}|${item.mtime}`;
+      img.dataset.key = thumbKey(item);
       const cached = state.thumbs.get(img.dataset.key);
       if (cached) {
         img.src = cached;
@@ -182,7 +194,7 @@
     const items = await api.listImages();
     const fresh = items.filter((i) => !state.known.has(i.path));
     for (const i of items) state.known.add(i.path);
-    state.items = items;
+    state.items = [...state.blanks, ...items];
     renderList();
     return fresh;
   }
@@ -198,8 +210,14 @@
     const el = e.target.closest('.item');
     if (!el) return;
     e.preventDefault();
+    let file = el.dataset.path;
+    if (isBlank(file)) {
+      // a canvas has no file yet: only the one on the workbench can be handed over
+      file = state.doc && state.doc.path === file ? fileForDrag() : null;
+    }
+    if (!file) return;
     state.draggingOut = true;
-    api.startDrag(el.dataset.path);
+    api.startDrag(file);
   });
 
   // ---------- documents ----------
@@ -215,11 +233,14 @@
     if (state.doc && state.doc.path === file) return;
     const token = ++state.openToken;
     try {
-      const data = await api.readImage(file);
-      const bitmap = await createImageBitmap(new Blob([data]));
+      const blank = state.blanks.find((b) => b.path === file);
+      if (isBlank(file) && !blank) return;
+      const bitmap = blank
+        ? window.Editor.blankBitmap(blank.w, blank.h)
+        : await createImageBitmap(new Blob([await api.readImage(file)]));
       if (token !== state.openToken) return;
       stashSession();
-      state.doc = { path: file, name: baseName(file) };
+      state.doc = blank ? { path: file, name: blank.name, blank } : { path: file, name: baseName(file) };
       state.temp = null;
       editor.setImage(bitmap, state.sessions.get(file));
       document.title = `${state.doc.name} — Snapmark`;
@@ -235,6 +256,40 @@
       }
       toast(`Could not open ${baseName(file)}`);
     }
+  }
+
+  /** A plain white page to draw on. It becomes a file the first time it is saved. */
+  let canvasCount = 0;
+  async function newCanvas() {
+    const n = ++canvasCount;
+    const blank = { path: `canvas:${n}`, name: `Blank canvas ${n}`, mtime: Date.now(), blank: true, ...CANVAS_SIZE };
+    state.blanks.unshift(blank);
+    state.thumbs.set(thumbKey(blank), WHITE_THUMB);
+    state.items = [blank, ...state.items];
+    renderList();
+    $('#list').scrollTop = 0;
+    await openPath(blank.path);
+    if (editor.tool === 'select') setTool('pen');
+  }
+
+  const WHITE_THUMB = (() => {
+    const c = document.createElement('canvas');
+    c.width = 32;
+    c.height = 18;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, 32, 18);
+    return c.toDataURL('image/png');
+  })();
+
+  /** Keep the sidebar preview of a blank canvas in step with what is drawn on it. */
+  function updateCanvasThumb(doc) {
+    if (!doc.blank || state.doc !== doc) return;
+    const url = editor.thumbDataURL();
+    if (!url) return;
+    state.thumbs.set(thumbKey(doc.blank), url);
+    const img = $$('#list .thumb img').find((i) => i.dataset.path === doc.path);
+    if (img) img.src = url;
   }
 
   function updateDirty() {
@@ -257,7 +312,8 @@
     const doc = state.doc;
     try {
       const data = await flattened();
-      const res = await (saveAs ? api.saveAs : api.save)({ sourcePath: doc.path, data });
+      // a blank canvas has no original file: it is saved as "Snapmark <date>.png" in the screenshot folder
+      const res = await (saveAs ? api.saveAs : api.save)({ sourcePath: doc.blank ? null : doc.path, data });
       if (!res) return;
       doc.savedRevision = editor.revision;
       updateDirty();
@@ -321,11 +377,12 @@
   /** Keep a flattened copy on disk so a drag can start instantly. */
   async function prepareTemp() {
     const doc = state.doc;
-    if (!doc || !editor.shapes.length) return;
+    if (!doc || (!editor.shapes.length && !doc.blank)) return;
     const revision = editor.revision;
+    updateCanvasThumb(doc);
     const blob = await editor.exportBlob();
     if (!blob || state.doc !== doc || editor.revision !== revision) return;
-    const file = await api.writeTemp({ name: markedName(doc.name), data: new Uint8Array(await blob.arrayBuffer()) });
+    const file = await api.writeTemp({ name: tempName(doc), data: new Uint8Array(await blob.arrayBuffer()) });
     if (state.doc === doc && editor.revision === revision) state.temp = { doc, revision, file };
   }
 
@@ -333,10 +390,10 @@
     const doc = state.doc;
     if (!doc) return null;
     editor.commitText();
-    if (!editor.shapes.length) return doc.path; // nothing drawn: hand over the original
+    if (!editor.shapes.length && !doc.blank) return doc.path; // nothing drawn: hand over the original
     const t = state.temp;
     if (t && t.doc === doc && t.revision === editor.revision) return t.file;
-    const file = api.writeTempSync({ name: markedName(doc.name), dataUrl: editor.exportDataURL() });
+    const file = api.writeTempSync({ name: tempName(doc), dataUrl: editor.exportDataURL() });
     if (file) state.temp = { doc, revision: editor.revision, file };
     return file;
   }
@@ -426,9 +483,14 @@
     for (const b of $$('#sizes .size')) b.classList.toggle('active', Number(b.dataset.size) === i);
   }
 
-  function setFill(on) {
-    editor.setFill(on);
-    $('#btn-fill').classList.toggle('active', on);
+  function showFill() {
+    const mode = editor.fill || 'none';
+    for (const b of $$('#fills .tool')) b.classList.toggle('active', b.dataset.fill === mode);
+  }
+
+  function setFill(mode) {
+    editor.setFill(mode === 'none' ? false : mode);
+    showFill();
   }
 
   function updateChrome() {
@@ -468,7 +530,14 @@
     const b = e.target.closest('.size');
     if (b) setSize(Number(b.dataset.size));
   });
-  $('#btn-fill').addEventListener('click', () => setFill(!editor.fill));
+  $('#fills').addEventListener('click', (e) => {
+    const b = e.target.closest('.tool');
+    if (!b) return;
+    setFill(b.dataset.fill);
+    showHint(FILL_HINTS[b.dataset.fill]);
+  });
+  $('#btn-new').addEventListener('click', newCanvas);
+  $('#btn-new-empty').addEventListener('click', newCanvas);
   $('#btn-undo').addEventListener('click', () => editor.undo());
   $('#btn-redo').addEventListener('click', () => editor.redo());
   $('#btn-save').addEventListener('click', (e) => save(e.shiftKey));
@@ -493,8 +562,8 @@
     editor.color = s.color;
     for (const b of $$('#colors .swatch')) b.classList.toggle('active', b.dataset.color === s.color);
     if ('fill' in s) {
-      editor.fill = s.fill;
-      $('#btn-fill').classList.toggle('active', s.fill);
+      editor.fill = s.fill === 'solid' ? 'solid' : s.fill ? 'soft' : false;
+      showFill();
     }
   };
 
@@ -525,6 +594,9 @@
       } else if (key === 'o') {
         e.preventDefault();
         openDialog();
+      } else if (key === 'n') {
+        e.preventDefault();
+        newCanvas();
       } else if (key === '0') {
         e.preventDefault();
         editor.fit();
@@ -548,7 +620,9 @@
       return;
     }
     if (key === 'f') {
-      setFill(!editor.fill);
+      const next = FILLS[(FILLS.indexOf(editor.fill || 'none') + 1) % FILLS.length];
+      setFill(next);
+      showHint(FILL_HINTS[next]);
       return;
     }
     if (TOOL_KEYS[key]) {
@@ -615,6 +689,7 @@
     setTool('select');
     setColor(COLORS[0]);
     setSize(1);
+    setFill('none');
     updateChrome();
 
     const init = await api.init();

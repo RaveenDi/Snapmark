@@ -19,9 +19,13 @@
           <span>Snapmark</span>
         </div>
         <button class="icon-btn" id="btn-open" title="Open an image (Ctrl+O)">
-          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M3.5 18V6.5A1.5 1.5 0 0 1 5 5h4l2 2.5h7.5A1.5 1.5 0 0 1 20 9v1.5M3.5 18l2.6-6.5a1.5 1.5 0 0 1 1.4-1h13l-2.7 7a1.5 1.5 0 0 1-1.4 1H4.5a1 1 0 0 1-1-.5z"/></svg>
         </button>
       </header>
+      <button class="new-btn" id="btn-new" title="Start with a plain white page to draw on (Ctrl+N)">
+        <svg viewBox="0 0 24 24"><path d="M13.5 3.5H7A1.5 1.5 0 0 0 5.5 5v14A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5V8.5zM13.5 3.5v5h5M12 11.5v5M9.5 14h5"/></svg>
+        <span>Blank canvas</span>
+      </button>
       <div class="side-label">Recent images</div>
       <div id="list" class="list"></div>
       <footer class="side-foot">
@@ -68,9 +72,18 @@
           <button class="size" data-size="2" title="Thick"><i style="--d:11px"></i></button>
           <button class="size" data-size="3" title="Extra thick"><i style="--d:15px"></i></button>
         </div>
-        <button class="tool" id="btn-fill" title="Fill closed shapes (F)">
-          <svg viewBox="0 0 24 24"><rect x="4.5" y="4.5" width="15" height="15" rx="2.5"/><rect x="7.5" y="7.5" width="9" height="9" rx="1" class="solid soft"/></svg>
-        </button>
+        <div class="sep"></div>
+        <div class="group" id="fills">
+          <button class="tool" data-fill="none" title="Outline only — shapes are not filled (F switches)">
+            <svg viewBox="0 0 24 24"><rect x="4.5" y="4.5" width="15" height="15" rx="2.5"/></svg>
+          </button>
+          <button class="tool" data-fill="soft" title="See-through fill — highlights an area (F switches)">
+            <svg viewBox="0 0 24 24"><rect x="4.5" y="4.5" width="15" height="15" rx="2.5"/><rect x="4.5" y="4.5" width="15" height="15" rx="2.5" class="solid soft"/></svg>
+          </button>
+          <button class="tool" data-fill="solid" title="Solid fill — draws filled shapes (F switches)">
+            <svg viewBox="0 0 24 24"><rect x="4.5" y="4.5" width="15" height="15" rx="2.5" class="solid"/></svg>
+          </button>
+        </div>
 
         <div class="sep"></div>
         <div class="group">
@@ -100,7 +113,10 @@
           <div class="empty-card">
             <h2>Nothing to mark up yet</h2>
             <p>Take a screenshot and it shows up here by itself.<br>You can also paste one with <kbd>Ctrl</kbd> <kbd>V</kbd>, drop a file in, or open one.</p>
-            <button class="btn" id="btn-open-empty">Open an image</button>
+            <div class="empty-actions">
+              <button class="btn" id="btn-open-empty">Open an image</button>
+              <button class="btn" id="btn-new-empty">Blank canvas</button>
+            </div>
           </div>
         </div>
 

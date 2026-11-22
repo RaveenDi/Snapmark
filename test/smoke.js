@@ -295,4 +295,83 @@ async function run() {
   await until(`window.__snapmark.state.doc.name === 'Screenshot 1.png'`);
   check('drawings are kept when switching images', (await shapes()).length === 5);
   await capture('06-final.png');
+
+  // ---- text uses the bundled handwriting font ----
+  check('text font is loaded', (await js(`window.__snapmark.editor.fontReady`)) === true && (await js(`document.fonts.check('600 32px "Edu NSW ACT Foundation"')`)) === true);
+
+  // ---- blank white canvas ----
+  const itemsBefore = await js(`document.querySelectorAll('#list .item').length`);
+  await key('n', ['control']);
+  check('Ctrl+N opens a blank canvas', await until(`(() => { const s = window.__snapmark; return !!s.state.doc && !!s.state.doc.blank && s.editor.iw === 1920 && s.editor.ih === 1080 && s.editor.shapes.length === 0; })()`));
+  check('blank canvas is listed in the sidebar', (await js(`document.querySelectorAll('#list .item').length`)) === itemsBefore + 1 && (await js(`document.querySelector('#list .item').classList.contains('active')`)));
+  const pixel = (x, y) => js(`(() => { const c = window.__snapmark.editor._flatten(); return [...c.getContext('2d').getImageData(${x}, ${y}, 1, 1).data]; })()`);
+  check('blank canvas is white', (await pixel(960, 540)).join() === '255,255,255,255');
+
+  // ---- filled shapes ----
+  await js(`document.querySelector('#fills [data-fill="solid"]').click(); 0`);
+  check('solid fill can be switched on', (await js(`window.__snapmark.editor.fill`)) === 'solid' && (await js(`document.querySelector('#fills [data-fill="solid"]').classList.contains('active')`)));
+  await key('r');
+  a = await pt(300, 250);
+  b = await pt(800, 600);
+  await dragMouse(a[0], a[1], b[0], b[1]);
+  list = await shapes();
+  check('rectangle drawn with solid fill', list.length === 1 && list[0].type === 'rect' && list[0].fill === 'solid');
+  check('filled rectangle is filled in the image', (await pixel(550, 425)).join() === '255,59,48,255' && (await pixel(1500, 900)).join() === '255,255,255,255', (await pixel(550, 425)).join());
+
+  await key('l');
+  const tri = [[1100, 300], [1600, 350], [1300, 750]];
+  for (const [x, y] of tri) {
+    const p = await pt(x, y);
+    await click(p[0], p[1]);
+  }
+  await sleep(400);
+  first = await pt(1100, 300);
+  await click(first[0], first[1]);
+  list = await shapes();
+  check('click-to-click shape is filled when closed', list.length === 2 && list[1].closed && list[1].fill === 'solid' && (await pixel(1330, 450)).join() === '255,59,48,255', (await pixel(1330, 450)).join());
+
+  await key('f'); // solid -> outline
+  await key('f'); // outline -> see-through
+  check('F switches between the fill styles', (await js(`window.__snapmark.editor.fill`)) === 'soft');
+  await key('o');
+  a = await pt(300, 700);
+  b = await pt(700, 980);
+  await sleep(450);
+  await dragMouse(a[0], a[1], b[0], b[1]);
+  const tint = await pixel(500, 840);
+  check('see-through fill tints the area', tint[0] === 255 && tint[1] > 150 && tint[1] < 245, tint.join());
+
+  // ---- typing on the canvas ----
+  const tc = await pt(900, 880);
+  await key('Escape');
+  await key('v');
+  await dblclick(tc[0], tc[1]);
+  await until(`!!document.querySelector('.text-editor')`);
+  check('text box uses the handwriting font', (await js(`getComputedStyle(document.querySelector('.text-editor')).fontFamily`)).includes('Edu NSW ACT Foundation'));
+  await wc.insertText('Notes on a blank page');
+  await capture('07-canvas-typing.png');
+  await key('Enter');
+  list = await shapes();
+  check('text added to the canvas', list.length === 4 && list[3].type === 'text');
+  await capture('08-canvas.png');
+
+  // ---- the canvas can be dragged out and saved as a new image ----
+  const canvasTemp = await until(`(() => { const s = window.__snapmark.state; return !!s.temp && s.temp.revision === window.__snapmark.editor.revision && /Blank canvas 1\\.png$/.test(s.temp.file); })()`, 3000);
+  check('canvas has a drag-out copy', canvasTemp);
+  const pngsBefore = fs.readdirSync(shots).filter((n) => /^Snapmark .*\.png$/.test(n));
+  await key('s', ['control']);
+  let canvasFile = null;
+  const end4 = Date.now() + 4000;
+  while (!canvasFile && Date.now() < end4) {
+    canvasFile = fs.readdirSync(shots).find((n) => /^Snapmark .*\.png$/.test(n) && !pngsBefore.includes(n)) || null;
+    if (!canvasFile) await sleep(60);
+  }
+  check('Ctrl+S saves the canvas as a new image', !!canvasFile, String(canvasFile));
+  if (canvasFile) {
+    await sleep(200);
+    const size = nativeImage.createFromPath(path.join(shots, canvasFile)).getSize();
+    check('saved canvas is a full-size white image', size.width === 1920 && size.height === 1080, `${size.width}x${size.height}`);
+    fs.copyFileSync(path.join(shots, canvasFile), path.join(outDir, '09-saved-canvas.png'));
+  }
+  check('canvas stays on the workbench after saving', (await js(`window.__snapmark.state.doc.blank ? window.__snapmark.editor.shapes.length : -1`)) === 4);
 }

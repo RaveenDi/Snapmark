@@ -5,8 +5,10 @@
 
 (() => {
   const ACCENT = '#3b82f6';
-  const FONT_STACK = '"Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif';
-  const LINE_H = 1.25;
+  // Text you type uses the bundled "Edu NSW ACT Foundation" handwriting font (see fonts/OFL.txt).
+  const FONT_STACK = '"Edu NSW ACT Foundation", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif';
+  const FONT_WEIGHT = 600;
+  const LINE_H = 1.3;
   const STROKES = [2, 4, 7, 12];
   const FONTS = [15, 22, 32, 46];
   const HANDLE_R = 5.5; // css px
@@ -48,7 +50,12 @@
     return lum > 0.62 ? 'rgba(0,0,0,0.78)' : 'rgba(255,255,255,0.92)';
   }
 
-  const fontOf = (size) => `600 ${size}px ${FONT_STACK}`;
+  const fontOf = (size) => `${FONT_WEIGHT} ${size}px ${FONT_STACK}`;
+  // The canvas can only draw with the font once it is loaded.
+  const fontReady = document.fonts.load(fontOf(32)).then((faces) => faces.length > 0, () => false);
+
+  /** false = outline only, 'soft' = see-through fill, 'solid' = fully filled. */
+  const fillMode = (v) => (v === 'solid' ? 'solid' : v ? 'soft' : false);
 
   function measureText(text, size) {
     measureCtx.font = fontOf(size);
@@ -109,9 +116,13 @@
     ctx.fillStyle = s.color;
     ctx.lineWidth = s.width || 1;
 
-    const softFill = () => {
+    // Fills the current path. A shape that is still being drawn is kept
+    // see-through so what is underneath stays visible while you place points.
+    const paintFill = (preview = false) => {
+      const mode = fillMode(s.fill);
+      if (!mode) return;
       ctx.save();
-      ctx.globalAlpha = 0.22;
+      ctx.globalAlpha = mode === 'solid' ? (preview ? 0.5 : 1) : 0.22;
       ctx.fill();
       ctx.restore();
     };
@@ -154,21 +165,22 @@
         ctx.moveTo(pts[0].x, pts[0].y);
         for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
         if (s.closed) ctx.closePath();
-        if (s.closed && s.fill) softFill();
+        if (s.closed) paintFill();
+        else if (opts.draft && pts.length >= 3) paintFill(true);
         ctx.stroke();
         break;
       }
       case 'rect': {
         ctx.beginPath();
         ctx.rect(s.x, s.y, s.w, s.h);
-        if (s.fill) softFill();
+        paintFill();
         ctx.stroke();
         break;
       }
       case 'ellipse': {
         ctx.beginPath();
         ctx.ellipse(s.x + s.w / 2, s.y + s.h / 2, Math.abs(s.w / 2), Math.abs(s.h / 2), 0, 0, TAU);
-        if (s.fill) softFill();
+        paintFill();
         ctx.stroke();
         break;
       }
@@ -368,6 +380,11 @@
       });
       new ResizeObserver(() => this._resize()).observe(host);
       this._resize();
+      this.fontReady = fontReady;
+      fontReady.then(() => {
+        this._placeEditor();
+        this.requestRender();
+      });
     }
 
     // ---------- document ----------
@@ -531,7 +548,7 @@
     }
 
     setFill(fill) {
-      this.fill = !!fill;
+      this.fill = fillMode(fill);
       const s = this.selected;
       if (s && 'fill' in s && s.fill !== this.fill) this._commit(() => (s.fill = this.fill));
     }
@@ -958,6 +975,8 @@
       ta.value = ed.text;
       ta.placeholder = ed.mode === 'label' ? 'Label' : 'Type…';
       ta.style.fontFamily = FONT_STACK;
+      ta.style.fontWeight = FONT_WEIGHT;
+      ta.style.lineHeight = LINE_H;
       ta.style.textAlign = ed.align;
       ed.el = ta;
       this.editing = ed;
@@ -1143,7 +1162,7 @@
           const pts = this.draft.pts;
           hover = this._constrain(pts[pts.length - 1], this.hover, this._shift);
         }
-        drawShape(ctx, this.draft, { hover });
+        drawShape(ctx, this.draft, { hover, draft: true });
       }
       ctx.restore();
 
@@ -1231,7 +1250,29 @@
     exportDataURL() {
       return this.image ? this._flatten().toDataURL('image/png') : null;
     }
+
+    /** A small preview of the image with its drawings (for the sidebar). */
+    thumbDataURL(maxWidth = 320) {
+      if (!this.image) return null;
+      const scale = Math.min(1, maxWidth / this.iw);
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(this.iw * scale));
+      c.height = Math.max(1, Math.round(this.ih * scale));
+      const ctx = c.getContext('2d');
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(this._flatten(), 0, 0, c.width, c.height);
+      return c.toDataURL('image/jpeg', 0.85);
+    }
   }
+
+  /** A plain white image to draw on when there is no screenshot. */
+  Editor.blankBitmap = (width, height) => {
+    const c = new OffscreenCanvas(width, height);
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+    return c.transferToImageBitmap();
+  };
 
   window.Editor = Editor;
 })();

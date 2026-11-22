@@ -11,8 +11,10 @@ Works on Windows, macOS and Linux. Free and open source (MIT).
 - **Workbench in the middle.** Scroll to zoom at the cursor, drag empty space (or hold Space, or use the middle mouse button) to pan.
 - **Arrows** — drag to draw. Double-click an arrow to type a label at its end.
 - **Lines and shapes, point by point** — click, click, click; the line follows your cursor. Click the first point to close the shape, or finish an open line with Enter or a double-click. Later you can drag one end of an open line onto the other end to close it.
-- **Rectangles, ellipses, freehand pen**, 8 colours, 4 sizes, optional fill.
-- **Text** — double-click anywhere and type.
+- **Rectangles, ellipses, freehand pen**, 8 colours, 4 sizes.
+- **Filled shapes** — three fill styles in the toolbar: outline only, see-through (to highlight an area) and solid (to draw filled shapes or cover something up). They apply to rectangles, ellipses and closed point-by-point shapes.
+- **Blank canvas** — *Blank canvas* in the sidebar (Ctrl+N) gives you a plain white 1920 × 1080 page to draw on when you have no screenshot. Ctrl+S saves it as a new image in your screenshot folder.
+- **Text** — double-click anywhere and type. Text is written in the [Edu NSW ACT Foundation](https://fonts.google.com/specimen/Edu+NSW+ACT+Foundation) handwriting font, which ships with the app.
 - **Ctrl+S / Cmd+S saves a new image** next to the original (`name-marked.png`, `name-marked-2.png`, …). The original is never overwritten.
 - **Drag out without saving** — drag the *Drag out* chip (top right of the workbench) onto any app or folder. You can also drag any thumbnail from the sidebar.
 - **Copy / paste** — Ctrl+C copies the marked-up image, Ctrl+V pastes an image from the clipboard as a new item.
@@ -26,8 +28,9 @@ Works on Windows, macOS and Linux. Free and open source (MIT).
 | Copy image / paste image | Ctrl+C / Ctrl+V | Cmd+C / Cmd+V |
 | Undo / redo | Ctrl+Z / Ctrl+Y | Cmd+Z / Cmd+Shift+Z |
 | Open an image | Ctrl+O | Cmd+O |
+| New blank canvas | Ctrl+N | Cmd+N |
 | Fit / actual size / zoom | Ctrl+0 / Ctrl+1 / Ctrl + and − | Cmd+0 / Cmd+1 / Cmd + and − |
-| Tools | V select, A arrow, L line/shape, R rectangle, O ellipse, P pen, T text, F fill | same |
+| Tools | V select, A arrow, L line/shape, R rectangle, O ellipse, P pen, T text, F switches the fill style | same |
 | Finish line / cancel / remove last point | Enter / Esc / Backspace | same |
 | Delete selected drawing | Delete | Delete |
 | Nudge selected drawing | Arrow keys (Shift = 10 px) | same |
@@ -58,7 +61,7 @@ npm run dist:mac     # macOS .dmg (must be run on a Mac)
 npm run dist:linux   # Linux AppImage
 ```
 
-`npm run icon` redraws `build/icon.png`. `npm run smoke` starts the real app against a throwaway folder and checks drawing, saving, zoom and the sidebar end to end.
+`npm run icon` redraws `build/icon.png`. `npm run smoke` starts the real app against a throwaway folder and checks drawing, filled shapes, the blank canvas, saving, zoom and the sidebar end to end.
 
 ## How it is put together
 
@@ -70,6 +73,7 @@ src/main/detect.js    finds the system screenshot folder
 src/main/preload.js   the small, safe bridge between page and system
 src/renderer/editor.js   the canvas workbench: zoom, pan, every drawing tool, export
 src/renderer/app.js      sidebar, toolbar, shortcuts
+src/renderer/fonts/      the font used for typed text
 ```
 
 The page runs sandboxed with context isolation; it can only reach the system through the functions listed in `preload.js`.
@@ -77,3 +81,5 @@ The page runs sandboxed with context isolation; it can only reach the system thr
 ## License
 
 [MIT](LICENSE)
+
+The bundled font, Edu NSW ACT Foundation, is by the AU School Handwriting Fonts Project Authors and is used under the SIL Open Font License 1.1 (see `src/renderer/fonts/OFL.txt`).
